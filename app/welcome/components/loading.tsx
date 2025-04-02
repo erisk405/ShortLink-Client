@@ -1,7 +1,7 @@
 import "../components/style.css";
 const LoadingEffect = () => {
   return (
-    <div className="flex items-center justify-between h-60 w-full">
+    <div className="flex items-center justify-between h-60 w-full animate-pulse">
       <section className="container">
         <div>
           <div>
