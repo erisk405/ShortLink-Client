@@ -29,16 +29,8 @@ export function HistoryPage({ history }: HistoryPageProps) {
 
   return (
     <div className="w-full">
-      <Card className="shadow-none border-none">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-2xl font-medium text-gray-900">
-            Your URL History
-          </CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            Track and manage your shortened URLs
-          </p>
-        </CardHeader>
-        <CardContent className="px-6 pb-6">
+      <Card className="shadow-none border-none py-0">
+        <CardContent className="">
           <div className="mb-6">
             <Input
               placeholder="Search URLs or codes..."
@@ -96,8 +88,10 @@ export function HistoryPage({ history }: HistoryPageProps) {
                       <TableCell className="text-gray-600 text-sm">
                         {new Date(item.createdAt).toLocaleDateString()}
                       </TableCell>
-                      <TableCell className="text-gray-600 text-sm">
-                        {item.clickCount}
+                      <TableCell className="text-gray-600 text-sm text-center">
+                        <span className="bg-green-100 text-emerald-500 rounded-full px-2 py-1 text-xs font-semibold">
+                          {item.clickCount}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}

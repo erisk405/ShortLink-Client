@@ -131,6 +131,7 @@ export function Welcome() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<UrlHistory[]>([]);
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
@@ -198,6 +199,19 @@ export function Welcome() {
     }
     // ถ้าไม่เข้าเงื่อนไขด้านบน จะปล่อยให้ form submit ตามปกติ
   };
+
+  const loadHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      const historyData = await fetchUrlHistory();
+      setHistory(historyData);
+      setIsLoadingHistory(false);
+    } catch (error) {
+      console.error("Error fetching URL history:", error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
   const resetForm = () => {
     form.reset();
     setShortenedUrl(null);
@@ -254,10 +268,6 @@ export function Welcome() {
     return () => subscription.unsubscribe();
   }, [form, isCopied, shortenedUrl]);
   useEffect(() => {
-    const loadHistory = async () => {
-      const historyData = await fetchUrlHistory();
-      setHistory(historyData);
-    };
     loadHistory();
   }, []);
   return (
@@ -297,7 +307,6 @@ export function Welcome() {
                   className="flex items-center gap-2"
                 >
                   <History size={16} />
-                  {/* {showHistory ? "Hide History" : "Show History"} */}
                 </Button>
               </div>
             </div>
@@ -318,7 +327,7 @@ export function Welcome() {
                     <SelectValue placeholder="Select tracking mode" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="short">Track by Short URL</SelectItem>
+                    <SelectItem value="short">Track by Short Code</SelectItem>
                     <SelectItem value="original">
                       Track by Original URL
                     </SelectItem>
@@ -340,7 +349,7 @@ export function Welcome() {
                       <FormLabel className="text-gray-600">
                         {isTrackingMode
                           ? trackingType === "short"
-                            ? "Short URL"
+                            ? "Short Code"
                             : "Original URL"
                           : "URL"}
                       </FormLabel>
@@ -350,7 +359,7 @@ export function Welcome() {
                           placeholder={
                             isTrackingMode
                               ? trackingType === "short"
-                                ? "Paste your short URL here"
+                                ? "Paste your short-code here"
                                 : "Paste your original URL here"
                               : "Paste your URL here"
                           }
@@ -452,13 +461,26 @@ export function Welcome() {
                   </div>
                 )}
                 <Sheet open={showHistory} onOpenChange={setShowHistory}>
-                  {/* <SheetTrigger></SheetTrigger>
-                  <SheetDescription></SheetDescription> */}
+                  <SheetTrigger></SheetTrigger>
+
                   <SheetContent
                     side="right"
                     className="overflow-y-scroll w-full sm:max-w-5xl lg:max-w-2xl scrollbar-gemini pb-10"
                   >
-                    <HistoryPage history={history} />
+                    <SheetHeader className="text-2xl font-medium text-gray-900">
+                      <SheetTitle>Your URL History</SheetTitle>
+
+                      <SheetDescription>
+                        Track and manage your shortened URLs
+                      </SheetDescription>
+                    </SheetHeader>
+                    {isLoadingHistory ? (
+                      <LoadingEffect />
+                    ) : history.length > 0 ? (
+                      <HistoryPage history={history} />
+                    ) : (
+                      <div className="text-center py-4">ไม่พบประวัติ</div>
+                    )}
                     <SheetFooter>
                       <SheetClose asChild>
                         <Button type="submit">Close</Button>
