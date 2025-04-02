@@ -11,6 +11,12 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 import { Toaster } from "./components/ui/sonner";
+import "@fontsource/noto-sans-thai/100.css";
+import "@fontsource/noto-sans-thai/300.css";
+import "@fontsource/noto-sans-thai/400.css";
+import "@fontsource/noto-sans-thai/500.css";
+import "@fontsource/noto-sans-thai/700.css";
+
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,7 +27,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Meta />
         <Links />
       </head>
-      <body className="">
+      <body style={{ fontFamily: "Noto Sans Thai, sans-serif" }}>
         {children}
         <Toaster position="bottom-left" />
         <ScrollRestoration />

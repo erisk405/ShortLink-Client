@@ -24,19 +24,23 @@ import { useDebounce } from "use-debounce";
 import axios from "axios";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { Download, BarChart2 } from "lucide-react";
+import { Download, BarChart2, History } from "lucide-react"; // Add History icon
 import LoadingEffect from "./components/loading";
-
-interface PreviewData {
-  title: string;
-  description: string;
-  image: string | null;
-}
-
-interface StatsData {
-  clicks: number;
-  lastClicked: string | null;
-}
+import GeoTrackingStats from "./components/geo-tracking-stats";
+import type { PreviewData, StatsData, UrlHistory } from "~/interface/type";
+import SimpleMap from "./components/simple-map";
+import { HistoryPage } from "./components/history";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "~/components/ui/sheet";
+import { Label } from "~/components/ui/label";
 
 // Schema สำหรับ URL
 const urlSchema = z.object({
@@ -80,31 +84,66 @@ const fetchPreview = async (url: string): Promise<PreviewData> => {
     };
   }
 };
-
-// Fetch Stats จาก Short URL
+const locations = [
+  {
+    city: "Bangkok",
+    country: "Thailand",
+    latitude: 13.7563,
+    longitude: 100.5018,
+    count: 15,
+  },
+  {
+    city: "New York",
+    country: "USA",
+    latitude: 40.7128,
+    longitude: -74.006,
+    count: 8,
+  },
+  {
+    city: "London",
+    country: "UK",
+    latitude: 51.5074,
+    longitude: -0.1278,
+    count: 4,
+  },
+];
 const fetchStatsByShortUrl = async (shortUrl: string): Promise<StatsData> => {
   try {
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/stats/${shortUrl}`
+      `${import.meta.env.VITE_API_URL}/location-stats?shortCode=${shortUrl}`
     );
     return response.data;
   } catch (error) {
-    return { clicks: 0, lastClicked: null };
+    console.error("Error fetching stats:", error);
+    return { totalClicks: 0, latestGeoLocation: null, locations: [] };
   }
 };
 
-// Fetch Stats จาก Original URL
-const fetchStatsByOriginalUrl = async (originalUrl: string): Promise<StatsData> => {
+const fetchStatsByOriginalUrl = async (
+  originalUrl: string
+): Promise<StatsData> => {
   try {
     const response = await axios.get(
-      `${import.meta.env.VITE_API_URL}/stats/original`,
-      {
-        params: { url: originalUrl },
-      }
+      `${
+        import.meta.env.VITE_API_URL
+      }/location-stats?originalUrl=${originalUrl}`
     );
+    console.log("response", response.data);
+
     return response.data;
   } catch (error) {
-    return { clicks: 0, lastClicked: null };
+    console.error("Error fetching stats:", error);
+    return { totalClicks: 0, latestGeoLocation: null, locations: [] };
+  }
+};
+
+const fetchUrlHistory = async (): Promise<UrlHistory[]> => {
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/history`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching URL history:", error);
+    return [];
   }
 };
 
@@ -114,13 +153,18 @@ export function Welcome() {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [stats, setStats] = useState<StatsData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<UrlHistory[]>([]);
   const [shortenedUrl, setShortenedUrl] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false); // เพิ่ม state ใหม่สำหรับสถานะปุ่ม
   const qrCodeRef = useRef<SVGSVGElement>(null);
 
   // เลือก Schema ตามโหมดการทำงาน
   const getFormSchema = () => {
     if (!isTrackingMode) return urlSchema;
-    return trackingType === "short" ? trackingShortUrlSchema : trackingOriginalUrlSchema;
+    return trackingType === "short"
+      ? trackingShortUrlSchema
+      : trackingOriginalUrlSchema;
   };
 
   const form = useForm<UrlFormData>({
@@ -128,6 +172,60 @@ export function Welcome() {
     defaultValues: { url: "" },
     mode: "onChange",
   });
+
+  const [debouncedUrl] = useDebounce(form.watch("url"), 500);
+
+  const copyUrl = (url: string) => {
+    try {
+      navigator.clipboard.writeText(url);
+      setIsCopied(true); // เปลี่ยนสถานะเมื่อคัดลอกสำเร็จ
+      toast("URL คัดลอกแล้ว", { description: "คัดลอกไปยังคลิปบอร์ดแล้ว" });
+    } catch (error) {
+      console.error({ message: error });
+    }
+  };
+  const onSubmit = async (data: UrlFormData) => {
+    setIsLoading(true);
+    try {
+      if (isTrackingMode) {
+        let statsData;
+        if (trackingType === "short") {
+          statsData = await fetchStatsByShortUrl(data.url);
+        } else {
+          statsData = await fetchStatsByOriginalUrl(data.url);
+        }
+        setStats(statsData);
+      } else {
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/shorten`,
+          {
+            originalUrl: data.url,
+          }
+        );
+        const newUrl = response.data.shortUrl;
+        setShortenedUrl(newUrl);
+        form.setValue("url", newUrl);
+        copyUrl(newUrl);
+      }
+    } catch (error) {
+      toast("เกิดข้อผิดพลาด", { description: "กรุณาลองใหม่" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!isTrackingMode && isCopied && shortenedUrl) {
+      e.preventDefault(); // ป้องกันการ submit form
+      copyUrl(shortenedUrl); // เรียกแค่ copy function
+    }
+    // ถ้าไม่เข้าเงื่อนไขด้านบน จะปล่อยให้ form submit ตามปกติ
+  };
+  const resetForm = () => {
+    form.reset();
+    setShortenedUrl(null);
+    setPreview(null);
+    setStats(null);
+  };
 
   // Reset validator เมื่อเปลี่ยนโหมด
   useEffect(() => {
@@ -137,8 +235,6 @@ export function Welcome() {
     setPreview(null);
     setStats(null);
   }, [isTrackingMode, trackingType, form]);
-
-  const [debouncedUrl] = useDebounce(form.watch("url"), 500);
 
   useEffect(() => {
     const getPreviewOrStats = async () => {
@@ -171,49 +267,25 @@ export function Welcome() {
     };
     getPreviewOrStats();
   }, [debouncedUrl, form.formState.isValid, isTrackingMode, trackingType]);
-
-  const onSubmit = async (data: UrlFormData) => {
-    setIsLoading(true);
-    try {
-      if (isTrackingMode) {
-        let statsData;
-        if (trackingType === "short") {
-          statsData = await fetchStatsByShortUrl(data.url);
-        } else {
-          statsData = await fetchStatsByOriginalUrl(data.url);
-        }
-        setStats(statsData);
-      } else {
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/shorten`,
-          {
-            originalUrl: data.url,
-          }
-        );
-        const newUrl = response.data.shortUrl;
-        setShortenedUrl(newUrl);
-        form.setValue("url", newUrl);
-        navigator.clipboard.writeText(newUrl);
-        toast("URL ย่อแล้ว", { description: "คัดลอกไปยังคลิปบอร์ดแล้ว" });
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "url" && isCopied && value.url !== shortenedUrl) {
+        setIsCopied(false); // เปลี่ยนกลับเมื่อผู้ใช้พิมพ์ค่าใหม่
       }
-    } catch (error) {
-      toast("เกิดข้อผิดพลาด", { description: "กรุณาลองใหม่" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const resetForm = () => {
-    form.reset();
-    setShortenedUrl(null);
-    setPreview(null);
-    setStats(null);
-  };
-
+    });
+    return () => subscription.unsubscribe();
+  }, [form, isCopied, shortenedUrl]);
+  useEffect(() => {
+    const loadHistory = async () => {
+      const historyData = await fetchUrlHistory();
+      setHistory(historyData);
+    };
+    loadHistory();
+  }, []);
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-gray-50">
       <div className="w-full max-w-lg">
-        <Card className="bg-white shadow-lg rounded-xl border border-gray-100">
+        <Card className="bg-white shadow-lg rounded-3xl border border-gray-100">
           <CardHeader className="space-y-2">
             <CardTitle className="text-3xl font-semibold text-center text-gray-800">
               {isTrackingMode ? "Track Your URL" : "Shorten Your URL"}
@@ -240,6 +312,16 @@ export function Welcome() {
               >
                 Track Mode
               </Button>
+              <div className="flex justify-center mb-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowHistory(!showHistory)}
+                  className="flex items-center gap-2"
+                >
+                  <History size={16} />
+                  {/* {showHistory ? "Hide History" : "Show History"} */}
+                </Button>
+              </div>
             </div>
 
             {/* เพิ่มตัวเลือกประเภทการติดตาม เมื่ออยู่ในโหมดติดตาม */}
@@ -250,14 +332,18 @@ export function Welcome() {
                 </div>
                 <Select
                   value={trackingType}
-                  onValueChange={(value: TrackingType) => setTrackingType(value)}
+                  onValueChange={(value: TrackingType) =>
+                    setTrackingType(value)
+                  }
                 >
                   <SelectTrigger className="w-full h-11 rounded-lg border border-gray-200">
                     <SelectValue placeholder="Select tracking mode" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="short">Track by Short URL</SelectItem>
-                    <SelectItem value="original">Track by Original URL</SelectItem>
+                    <SelectItem value="original">
+                      Track by Original URL
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -298,6 +384,7 @@ export function Welcome() {
                   )}
                 />
 
+                {isLoading && <LoadingEffect />}
                 {/* Preview หรือ Stats */}
                 {preview && !isTrackingMode && (
                   <div className="p-4 bg-gray-50 rounded-lg border">
@@ -320,28 +407,31 @@ export function Welcome() {
                     </div>
                   </div>
                 )}
-
-                {/* สลับหน้าเป็นโหมด Tracking */}
+                {/* Stats และ Map */}
                 {stats && isTrackingMode && (
-                  <div className="p-4 bg-gray-50 rounded-lg border flex items-center gap-2">
-                    <BarChart2 size={24} />
-                    <div>
-                      <p className="text-gray-800 font-medium">
-                        Clicks: {stats.clicks}
-                      </p>
-                      <p className="text-gray-500 text-sm">
-                        Last clicked: {stats.lastClicked || "N/A"}
-                      </p>
-                      {trackingType === "original" && stats.clicks > 0 && (
-                        <p className="text-gray-500 text-sm mt-1">
-                          Short URL: {shortenedUrl || "N/A"}
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-lg border flex items-center gap-2">
+                      <BarChart2 size={24} />
+                      <div>
+                        <p className="text-gray-800 font-medium">
+                          Clicks: {stats.totalClicks}
                         </p>
-                      )}
+                        <p className="text-gray-500 text-sm">
+                          Last clicked: {stats.latestGeoLocation?.city || "N/A"}
+                        </p>
+                        {trackingType === "original" &&
+                          stats.totalClicks > 0 && (
+                            <p className="text-gray-500 text-sm mt-1">
+                              Short URL: {shortenedUrl || "N/A"}
+                            </p>
+                          )}
+                      </div>
                     </div>
+                    {stats.locations.length > 0 && (
+                      <SimpleMap locations={stats.locations} /> // Use SimpleMap here
+                    )}
                   </div>
                 )}
-
-                {isLoading && <LoadingEffect />}
 
                 {/* QR Code */}
                 {shortenedUrl && !isTrackingMode && (
@@ -383,16 +473,36 @@ export function Welcome() {
                     </Button>
                   </div>
                 )}
-
+                <Sheet open={showHistory} onOpenChange={setShowHistory}>
+                  {/* <SheetTrigger></SheetTrigger>
+                  <SheetDescription></SheetDescription> */}
+                  <SheetContent
+                    side="right"
+                    className="overflow-y-scroll w-full sm:max-w-5xl lg:max-w-2xl scrollbar-gemini pb-10"
+                  >
+                    <HistoryPage history={history} />
+                    <SheetFooter>
+                      <SheetClose asChild>
+                        <Button type="submit">Close</Button>
+                      </SheetClose>
+                    </SheetFooter>
+                  </SheetContent>
+                </Sheet>
                 <div className="flex gap-2">
                   <Button
                     type="submit"
                     className="flex-1 h-11 text-white rounded-lg hover:bg-gray-900"
                     disabled={
-                      form.formState.isSubmitting || !form.formState.isValid
+                      form.formState.isSubmitting ||
+                      (!isCopied && !form.formState.isValid) // ปิดการ disable เมื่อ isCopied เป็น true
                     }
+                    onClick={handleButtonClick}
                   >
-                    {isTrackingMode ? "Check Stats" : "Shorten"}
+                    {isTrackingMode
+                      ? "Check Stats"
+                      : isCopied
+                      ? "คัดลอกแล้ว"
+                      : "Shorten"}
                   </Button>
                   <Button
                     type="button"
