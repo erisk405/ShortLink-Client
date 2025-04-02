@@ -84,29 +84,7 @@ const fetchPreview = async (url: string): Promise<PreviewData> => {
     };
   }
 };
-const locations = [
-  {
-    city: "Bangkok",
-    country: "Thailand",
-    latitude: 13.7563,
-    longitude: 100.5018,
-    count: 15,
-  },
-  {
-    city: "New York",
-    country: "USA",
-    latitude: 40.7128,
-    longitude: -74.006,
-    count: 8,
-  },
-  {
-    city: "London",
-    country: "UK",
-    latitude: 51.5074,
-    longitude: -0.1278,
-    count: 4,
-  },
-];
+
 const fetchStatsByShortUrl = async (shortUrl: string): Promise<StatsData> => {
   try {
     const response = await axios.get(
