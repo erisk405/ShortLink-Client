@@ -474,7 +474,7 @@ export function Welcome() {
                         Track and manage your shortened URLs
                       </SheetDescription>
                     </SheetHeader>
-                    {!isLoadingHistory ? (
+                    {isLoadingHistory ? (
                       <div className="h-full flex items-center justify-center">
                         <LoadingEffect />
                       </div>
