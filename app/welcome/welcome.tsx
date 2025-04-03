@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import { Download, BarChart2, History } from "lucide-react"; // Add History icon
 import LoadingEffect from "./components/loading";
-import GeoTrackingStats from "./components/geo-tracking-stats";
 import type { PreviewData, StatsData, UrlHistory } from "~/interface/type";
 import SimpleMap from "./components/simple-map";
 import { HistoryPage } from "./components/history";
